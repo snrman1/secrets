@@ -3,7 +3,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const ejs = require('ejs');
 const mongoose = require('mongoose');
-const encrypt = require("mongoose-encryption");
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 const app = express();
 
@@ -22,7 +23,6 @@ mongoose.connect('mongodb://0.0.0.0:27017/userDb',{useNewUrlParser: true})
   });
   
  
-  userSchema.plugin(encrypt,{ secret :process.env.SECRET, encryptedFields:['password']});
   
 
   const User = mongoose.model('User', userSchema);
@@ -33,7 +33,7 @@ app.get("/",(req,res)=>{
 
 app.get("/login",(req,res)=>{
     res.render('login');
-})
+}) 
 
 app.get("/register",(req,res)=>{
     res.render('register');
@@ -41,11 +41,14 @@ app.get("/register",(req,res)=>{
 
 
 app.post("/register", (req, res) => {
+
+  bcrypt.hash( req.body.password, saltRounds, function(err, hash) {
+  
     const newUser = new User({
       email: req.body.username,
-      password: req.body.password,
-    });
-  
+      password: hash
+    })
+
     newUser.save()
     .then(() => {
       // Registration successful, render the 'secrets' page
@@ -56,6 +59,10 @@ app.post("/register", (req, res) => {
       console.error('Error during registration:', error);
       res.status(500).send('An error occurred during registration.');
     });
+  })
+    
+  
+    
 });
 //////////user loggin//////////
 app.post("/login", (req, res)=> {
@@ -64,15 +71,24 @@ app.post("/login", (req, res)=> {
    const password = req.body.password;
 
    //if(username === username && password === password) {
-   User.findOne({email:username,password:password})
-   .then(() => {
-   
-    res.render('secrets');})
+   User.findOne({email:username})
+   .then((user) => {
+    if(!user){
+      return res.status(404).send('User not found')}
+    
+    bcrypt.compare(password,user.password,(err, result)=> {
+      if(err){
+        console.log(err);
+      } else {
+        res.render('secrets');
+      }
+  });
+})
    
    .catch((error)=>{
     console.log('error',error);
-   })}
-);
+   });
+  });
 
 
 
